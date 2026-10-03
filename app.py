@@ -172,6 +172,18 @@ def ajustar_cuotas_a_n():
     st.session_state["texto_cuotas"] = texto_desde_cuotas(nuevas)
 
 
+def generar_caso_aleatorio():
+    """Se ejecuta al pulsar el botón. Crea N cuotas al azar que suman 100.
+    No usa semilla, así que cada clic da un mercado distinto. El resultado se guarda
+    en session_state, por eso no cambia al elegir otro indicador."""
+    n_actual = st.session_state["n_empresas"]
+    rng = np.random.default_rng()                        # sin semilla: azar distinto cada vez
+    cuotas = rng.dirichlet(np.ones(n_actual)) * 100
+    cuotas = sorted((round(c, 2) for c in cuotas), reverse=True)   # de mayor a menor
+    cuotas[0] = round(cuotas[0] + 100 - sum(cuotas), 2)  # corrige el error de redondeo
+    st.session_state["texto_cuotas"] = texto_desde_cuotas(cuotas)
+
+
 # Valores iniciales (solo la primera vez que se abre la página)
 if "texto_cuotas" not in st.session_state:
     st.session_state["texto_cuotas"] = "40, 25, 15, 12, 8"
@@ -194,6 +206,7 @@ texto_cuotas = st.text_input(
     f"Cuotas de mercado de las {n} empresas en % (separadas por comas, deben sumar 100)",
     key="texto_cuotas",
 )
+st.button("🎲 Generar caso real al azar", on_click=generar_caso_aleatorio)
 st.caption("Al cambiar N, las cuotas se ajustan solas: si bajas N se quitan las últimas "
            "empresas, si lo subes se añaden empresas del tamaño de la más pequeña, y "
            "luego todo se reescala para sumar 100. Después puedes editarlas a mano.")
