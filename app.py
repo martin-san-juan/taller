@@ -183,7 +183,7 @@ if n_sim > 1_000:
         "muy alta puede hacer que la app se ralentice o se reinicie."
     )
 alpha = 1.0   # fijo: todos los repartos posibles del mercado son igual de probables
-semilla = st.sidebar.number_input("Semilla", value=42, step=1)
+semilla = 42  # fija: así los resultados son siempre los mismos para los mismos datos
 
 
 # ---------------------------------------------------------------
