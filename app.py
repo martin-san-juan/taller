@@ -272,7 +272,7 @@ memoria_mb = n * n_sim * 8 / 1e6            # matriz de N × n_sim cuotas, 8 byt
 st.sidebar.caption(
     f"Con {n_sim:,} simulaciones el percentil tiene un error de hasta "
     f"±{error_percentil:.2f} puntos porcentuales y la simulación ocupa unos "
-    f"{memoria_mb:,.2f} MB. Justificación de los límites: sección «Análisis Monte Carlo»."
+    f"{memoria_mb:,.2f} MB. "
 )
 
 if n_sim > 1_000:
