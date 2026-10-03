@@ -196,7 +196,6 @@ for nombre, datos in INDICADORES.items():
     etiqueta = f"CR{k} (cuota de las {k} mayores)" if nombre.startswith("CR") else nombre
     filas.append({"Indicador": etiqueta, "Valor": datos["formato"].format(valor)})
 st.table(filas)
-st.caption(f"Clasificación según HHI: {clasificar_hhi(float(calcular_hhi(cuotas_reales)))}")
 
 
 # ---------------------------------------------------------------
@@ -257,3 +256,40 @@ ax.set_title(f"Distribución Monte Carlo: {nombre_corto}")
 ax.legend()
 st.pyplot(fig)
 plt.close(fig)
+
+
+# ---------------------------------------------------------------
+# 8. PREGUNTA PARA EL USUARIO (según el HHI)
+# ---------------------------------------------------------------
+st.divider()
+st.subheader("Pon a prueba tu intuición")
+
+hhi_quiz = float(calcular_hhi(cuotas_reales))
+
+# Traducimos la clasificación oficial a las tres opciones de la pregunta
+RESPUESTA_CORRECTA = {
+    "No concentrado": "Baja",
+    "Moderadamente concentrado": "Moderada",
+    "Altamente concentrado": "Alta",
+}[clasificar_hhi(hhi_quiz)]
+
+eleccion = st.radio(
+    "Según el HHI, ¿la concentración de este mercado es baja, moderada o alta?",
+    ["Baja", "Moderada", "Alta"],
+    index=None,          # ninguna opción marcada al inicio
+    horizontal=True,
+)
+
+if st.button("Responder"):
+    if eleccion is None:
+        st.warning("Elige una opción antes de responder.")
+    elif eleccion == RESPUESTA_CORRECTA:
+        st.success(f"¡Correcto! Con un HHI de {hhi_quiz:,.0f}, la concentración es "
+                   f"{RESPUESTA_CORRECTA.lower()}.")
+    else:
+        st.error(f"No es correcto. Con un HHI de {hhi_quiz:,.0f}, la concentración es "
+                 f"{RESPUESTA_CORRECTA.lower()}.")
+
+    if eleccion is not None:
+        st.caption("Criterio usado (Merger Guidelines de EE.UU., 2023): HHI menor que "
+                   "1.000 = baja; entre 1.000 y 1.800 = moderada; mayor que 1.800 = alta.")
