@@ -255,8 +255,8 @@ if indicador.startswith("CR"):
 st.sidebar.header("Simulación")
 n_sim = int(st.sidebar.number_input(
     "Número de simulaciones",
-    min_value=1,          # permite valores pequeños (menos de 1.000)
-    max_value=500_000,    # tope de seguridad para no saturar el servidor
+    min_value=100,        # mínimo para que el percentil tenga sentido
+    max_value=50_000,     # tope para no saturar el servidor
     value=1_000,          # valor por defecto
     step=100,             # cuánto suben/bajan los botones + y -
 ))
