@@ -1,4 +1,4 @@
- """
+"""
 App de Streamlit: simulación Monte Carlo de la concentración de un mercado.
 Indicadores: CR_k, HHI, índice de dominancia y entropía.
 Ejecutar en local:  streamlit run app.py
