@@ -143,14 +143,60 @@ def simular_mercados(n_empresas, n_sim, alpha, semilla):
 # ---------------------------------------------------------------
 # 3. INTERFAZ: ENTRADA DE DATOS
 # ---------------------------------------------------------------
+def texto_desde_cuotas(cuotas):
+    """Convierte una lista de cuotas en texto: [40, 25.5] -> "40, 25.5"."""
+    return ", ".join(f"{c:.2f}".rstrip("0").rstrip(".") for c in cuotas)
+
+
+def ajustar_cuotas_a_n():
+    """Se ejecuta al cambiar N. Adapta las cuotas escritas al nuevo número de empresas
+    manteniendo su forma, y las reescala para que vuelvan a sumar 100."""
+    n_nuevo = st.session_state["n_empresas"]
+    try:
+        actuales = [float(x) for x in st.session_state["texto_cuotas"].split(",") if x.strip()]
+    except ValueError:
+        actuales = []
+    actuales = [c for c in actuales if c > 0] or [100.0]   # si no hay nada válido, se parte de cero
+
+    if len(actuales) >= n_nuevo:
+        # Sobran empresas: se quedan las N primeras
+        nuevas = actuales[:n_nuevo]
+    else:
+        # Faltan empresas: las nuevas reciben la cuota de la más pequeña
+        nuevas = actuales + [min(actuales)] * (n_nuevo - len(actuales))
+
+    # Reescalar para que sumen 100 y redondear a 2 decimales
+    total = sum(nuevas)
+    nuevas = [round(c * 100 / total, 2) for c in nuevas]
+    nuevas[0] = round(nuevas[0] + 100 - sum(nuevas), 2)     # corrige el error de redondeo
+    st.session_state["texto_cuotas"] = texto_desde_cuotas(nuevas)
+
+
+# Valores iniciales (solo la primera vez que se abre la página)
+if "texto_cuotas" not in st.session_state:
+    st.session_state["texto_cuotas"] = "40, 25, 15, 12, 8"
+    st.session_state["n_empresas"] = 5
+
 st.title("Concentración de mercado: simulación Monte Carlo")
 st.write("Compara un mercado real con miles de mercados aleatorios "
          "con el mismo número de empresas.")
 
+n = int(st.number_input(
+    "Número de empresas (N)",
+    min_value=2,
+    max_value=100,
+    step=1,
+    key="n_empresas",
+    on_change=ajustar_cuotas_a_n,   # al cambiar N, se ajustan las cuotas
+))
+
 texto_cuotas = st.text_input(
-    "Cuotas de mercado en % (separadas por comas, deben sumar 100)",
-    value="40, 25, 15, 12, 8",
+    f"Cuotas de mercado de las {n} empresas en % (separadas por comas, deben sumar 100)",
+    key="texto_cuotas",
 )
+st.caption("Al cambiar N, las cuotas se ajustan solas: si bajas N se quitan las últimas "
+           "empresas, si lo subes se añaden empresas del tamaño de la más pequeña, y "
+           "luego todo se reescala para sumar 100. Después puedes editarlas a mano.")
 
 
 # ---------------------------------------------------------------
@@ -162,8 +208,9 @@ except ValueError:
     st.error("Escribe solo números separados por comas, por ejemplo: 40, 25, 15, 12, 8")
     st.stop()
 
-if len(cuotas_reales) < 2:
-    st.error("Introduce al menos 2 empresas.")
+if len(cuotas_reales) != n:
+    st.error(f"Has escrito {len(cuotas_reales)} cuotas, pero N = {n}. "
+             "Escribe una cuota por empresa o cambia N.")
     st.stop()
 
 fuera_de_rango = [x for x in cuotas_reales if x < 0 or x > 100]
@@ -175,8 +222,6 @@ if fuera_de_rango:
 if not np.isclose(cuotas_reales.sum(), 100):
     st.error(f"Las cuotas deben sumar 100 (ahora suman {cuotas_reales.sum():.2f}).")
     st.stop()
-
-n = len(cuotas_reales)
 
 
 # ---------------------------------------------------------------
