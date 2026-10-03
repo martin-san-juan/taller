@@ -97,13 +97,53 @@ def calcular_indicador(nombre, cuotas, k=4):
     return calcular_entropia(cuotas)
 
 
-def clasificar_hhi(hhi):
-    """Umbrales de las Merger Guidelines de EE.UU. (2023)."""
-    if hhi < 1000:
-        return "No concentrado"
-    elif hhi <= 1800:
-        return "Moderadamente concentrado"
-    return "Altamente concentrado"
+# ---------------------------------------------------------------
+# UMBRALES DE CLASIFICACIÓN (baja / moderada / alta)
+# El HHI tiene umbrales oficiales (EE.UU. 2023: 1.000 y 1.800).
+# Para los demás se usa la "equivalencia en número de empresas":
+#   HHI 1.000 = mercado de 10 empresas iguales
+#   HHI 1.800 = mercado de 10.000/1.800 ≈ 5,56 empresas iguales
+# y se calcula cuánto valdría cada indicador en esos dos mercados.
+# ---------------------------------------------------------------
+N_EQ_BAJA = 10_000 / 1_000    # 10 empresas iguales
+N_EQ_ALTA = 10_000 / 1_800    # ≈ 5,56 empresas iguales
+
+
+def obtener_umbrales(nombre, n, k):
+    """Devuelve (corte_baja, corte_alta, fuente) para el indicador elegido."""
+    if nombre.startswith("HHI"):
+        return 1_000, 1_800, "Fuente: umbrales oficiales de las Merger Guidelines de EE.UU. (2023)."
+    if nombre.startswith("Índice de dominancia"):
+        return 1_000, 1_800, ("Fuente: no hay umbrales oficiales vigentes. Con empresas iguales "
+                              "el ID vale lo mismo que el HHI, así que se usan sus mismos cortes.")
+    if nombre.startswith("CR"):
+        baja = min(100.0, 100 * k / N_EQ_BAJA)
+        alta = min(100.0, 100 * k / N_EQ_ALTA)
+        return baja, alta, (f"Fuente: equivalencia con el HHI. Es el CR{k} de un mercado de 10 "
+                            "empresas iguales (HHI 1.000) y de 5,56 empresas iguales (HHI 1.800).")
+    if nombre.startswith("Entropía normalizada"):
+        return (np.log(N_EQ_BAJA) / np.log(n), np.log(N_EQ_ALTA) / np.log(n),
+                f"Fuente: equivalencia con el HHI. Son ln 10 y ln 5,56 divididos por ln {n}.")
+    return (np.log(N_EQ_BAJA), np.log(N_EQ_ALTA),
+            "Fuente: equivalencia con el HHI. Con N empresas iguales la entropía vale ln N, "
+            "así que los cortes son ln 10 y ln 5,56.")
+
+
+def clasificar(nombre, valor, n, k, tol=1e-9):
+    """Devuelve "Baja", "Moderada" o "Alta". En la entropía la escala va al revés."""
+    baja, alta, _ = obtener_umbrales(nombre, n, k)
+    if INDICADORES[nombre]["mas_alto_mas_concentrado"]:
+        if valor < baja - tol:
+            return "Baja"
+        if valor <= alta + tol:
+            return "Moderada"
+        return "Alta"
+    # Entropía: valor alto = poca concentración
+    if valor > baja + tol:
+        return "Baja"
+    if valor >= alta - tol:
+        return "Moderada"
+    return "Alta"
 
 
 # ---------------------------------------------------------------
@@ -259,37 +299,45 @@ plt.close(fig)
 
 
 # ---------------------------------------------------------------
-# 8. PREGUNTA PARA EL USUARIO (según el HHI)
+# 8. PREGUNTA PARA EL USUARIO (según el indicador elegido)
 # ---------------------------------------------------------------
 st.divider()
 st.subheader("Pon a prueba tu intuición")
 
-hhi_quiz = float(calcular_hhi(cuotas_reales))
-
-# Traducimos la clasificación oficial a las tres opciones de la pregunta
-RESPUESTA_CORRECTA = {
-    "No concentrado": "Baja",
-    "Moderadamente concentrado": "Moderada",
-    "Altamente concentrado": "Alta",
-}[clasificar_hhi(hhi_quiz)]
+correcta = clasificar(indicador, valor_real, n, k)
+corte_baja, corte_alta, fuente = obtener_umbrales(indicador, n, k)
 
 eleccion = st.radio(
-    "Según el HHI, ¿la concentración de este mercado es baja, moderada o alta?",
+    f"Según el indicador {nombre_corto}, ¿la concentración de este mercado es baja, moderada o alta?",
     ["Baja", "Moderada", "Alta"],
-    index=None,          # ninguna opción marcada al inicio
+    index=None,                          # ninguna opción marcada al inicio
     horizontal=True,
+    key=f"pregunta_{indicador}_{k}",     # se reinicia al cambiar de indicador o de k
 )
 
 if st.button("Responder"):
     if eleccion is None:
         st.warning("Elige una opción antes de responder.")
-    elif eleccion == RESPUESTA_CORRECTA:
-        st.success(f"¡Correcto! Con un HHI de {hhi_quiz:,.0f}, la concentración es "
-                   f"{RESPUESTA_CORRECTA.lower()}.")
     else:
-        st.error(f"No es correcto. Con un HHI de {hhi_quiz:,.0f}, la concentración es "
-                 f"{RESPUESTA_CORRECTA.lower()}.")
+        texto = (f"Con {nombre_corto} = {fmt.format(valor_real)}, "
+                 f"la concentración es {correcta.lower()}.")
+        if eleccion == correcta:
+            st.success("¡Correcto! " + texto)
+        else:
+            st.error("No es correcto. " + texto)
 
-    if eleccion is not None:
-        st.caption("Criterio usado (Merger Guidelines de EE.UU., 2023): HHI menor que "
-                   "1.000 = baja; entre 1.000 y 1.800 = moderada; mayor que 1.800 = alta.")
+        # Explicar el criterio usado
+        b, a = fmt.format(float(corte_baja)), fmt.format(float(corte_alta))
+        if info["mas_alto_mas_concentrado"]:
+            criterio = f"baja si es menor que {b}; moderada entre {b} y {a}; alta si es mayor que {a}."
+        else:
+            criterio = (f"baja si es mayor que {b}; moderada entre {a} y {b}; alta si es menor "
+                        f"que {a}. Ojo: en la entropía, un valor más alto es MENOS concentración.")
+        st.caption(f"Criterio para {nombre_corto}: {criterio} {fuente}")
+
+        # Avisar si con este número de empresas ni el reparto más igualitario es "baja"
+        iguales = np.full(n, 100 / n)
+        nivel_minimo = clasificar(indicador, float(calcular_indicador(indicador, iguales, k)), n, k)
+        if nivel_minimo != "Baja":
+            st.caption(f"Nota: con {n} empresas, incluso si todas tuvieran la misma cuota la "
+                       f"concentración sería {nivel_minimo.lower()} según este criterio.")
