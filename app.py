@@ -182,7 +182,7 @@ if n_sim > 1_000:
         "del servidor. En Streamlit Cloud los recursos son limitados y una cifra "
         "muy alta puede hacer que la app se ralentice o se reinicie."
     )
-alpha = st.sidebar.slider("Alpha (desigualdad de los mercados simulados)", 0.1, 10.0, 1.0, step=0.1)
+alpha = 1.0   # fijo: todos los repartos posibles del mercado son igual de probables
 semilla = st.sidebar.number_input("Semilla", value=42, step=1)
 
 
