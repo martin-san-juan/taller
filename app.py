@@ -1,4 +1,4 @@
-"""
+ """
 App de Streamlit: simulación Monte Carlo de la concentración de un mercado.
 Indicadores: CR_k, HHI, índice de dominancia y entropía.
 Ejecutar en local:  streamlit run app.py
@@ -137,11 +137,8 @@ def clasificar(nombre, valor, n, k, tol=1e-9):
 # 2. SIMULACIÓN MONTE CARLO
 #    @st.cache_data guarda el resultado: si solo cambias de indicador,
 #    no se vuelven a simular los mercados (la app va más rápido).
-#    max_entries=3: solo se guardan las 3 simulaciones más recientes, así la
-#    memoria no crece si alguien prueba muchas combinaciones de N y simulaciones
-#    (cada una puede ocupar hasta 40 MB con N = 100 y 50.000 simulaciones).
 # ---------------------------------------------------------------
-@st.cache_data(max_entries=3)
+@st.cache_data
 def simular_mercados(n_empresas, n_sim, alpha, semilla):
     rng = np.random.default_rng(semilla)
     return rng.dirichlet(np.full(n_empresas, alpha), size=n_sim) * 100
@@ -253,39 +250,28 @@ indicador = st.sidebar.selectbox("¿Qué indicador quieres analizar?", list(INDI
 k = min(4, n)
 if indicador.startswith("CR"):
     # El máximo de k es el número de empresas, así nunca se puede superar
-    k = st.sidebar.slider("k (número de empresas más grandes)", 1, n, min(4, n))
+    k = int(st.sidebar.number_input(
+        "k (número de empresas más grandes)",
+        min_value=1,
+        max_value=n,          # nunca puede superar el número de empresas
+        value=min(4, n),      # por defecto CR4 (o N si hay menos de 4 empresas)
+        step=1,
+    ))
 
 st.sidebar.header("Simulación")
-N_SIM_MIN, N_SIM_MAX = 100, 50_000
 n_sim = int(st.sidebar.number_input(
     "Número de simulaciones",
-    min_value=N_SIM_MIN,  # mínimo para que el percentil tenga sentido
-    max_value=N_SIM_MAX,  # tope para no saturar el servidor
+    min_value=100,        # mínimo para que el percentil tenga sentido
+    max_value=50_000,     # tope para no saturar el servidor
     value=1_000,          # valor por defecto
     step=100,             # cuánto suben/bajan los botones + y -
 ))
-
-# Precisión y memoria estimadas para el valor elegido (la justificación completa
-# de los límites está en la sección "Análisis Monte Carlo")
-error_percentil = 50 / np.sqrt(n_sim)       # error estándar máximo del percentil, en puntos porcentuales
-memoria_mb = n * n_sim * 8 / 1e6            # matriz de N × n_sim cuotas, 8 bytes cada una
-st.sidebar.caption(
-    f"Con {n_sim:,} simulaciones el percentil tiene un error de hasta "
-    f"±{error_percentil:.2f} puntos porcentuales y la simulación ocupa unos "
-    f"{memoria_mb:,.2f} MB. "
-)
-
 if n_sim > 1_000:
     st.sidebar.warning(
         f"Vas a simular {n_sim:,} mercados. Más simulaciones dan resultados más "
         "precisos, pero la app tardará más en responder y usará más memoria y CPU "
         "del servidor. En Streamlit Cloud los recursos son limitados y una cifra "
         "muy alta puede hacer que la app se ralentice o se reinicie."
-    )
-elif n_sim < 1_000:
-    st.sidebar.info(
-        f"Con menos de 1.000 simulaciones el histograma se ve irregular y el percentil "
-        "cambia más de una simulación a otra."
     )
 alpha = 1.0   # fijo: todos los repartos posibles del mercado son igual de probables
 semilla = 42  # fija: así los resultados son siempre los mismos para los mismos datos
@@ -298,7 +284,10 @@ st.subheader("Caso real: todos los indicadores")
 filas = []
 for nombre, datos in INDICADORES.items():
     valor = float(calcular_indicador(nombre, cuotas_reales, k))
-    etiqueta = f"CR{k} (cuota de las {k} mayores)" if nombre.startswith("CR") else nombre
+    if nombre.startswith("CR"):
+        etiqueta = "CR1 (cuota de la mayor)" if k == 1 else f"CR{k} (cuota de las {k} mayores)"
+    else:
+        etiqueta = nombre
     filas.append({"Indicador": etiqueta, "Valor": datos["formato"].format(valor)})
 st.table(filas)
 
@@ -338,37 +327,6 @@ st.write(f"El caso real es **más concentrado que el {mas_concentrado_que:.1f} %
          f"{n_sim:,} mercados simulados con {n} empresas.")
 st.write(f"El 95 % de los mercados simulados tiene un {nombre_corto} entre "
          f"{fmt.format(float(p025))} y {fmt.format(float(p975))}.")
-
-# Justificación de los límites del número de simulaciones (estabilidad vs. rendimiento)
-with st.expander(f"¿Por qué el número de simulaciones va de {N_SIM_MIN:,} a {N_SIM_MAX:,}?".replace(",", ".")):
-    st.markdown(
-        """
-El percentil del caso real se estima como una proporción: de las M simulaciones,
-qué fracción queda por debajo del caso real. El error estándar de esa proporción es,
-como máximo, **0,5 / √M** (es decir, ±50/√M puntos porcentuales). El error baja con
-la raíz de M: para reducirlo a la mitad hay que simular **cuatro veces más**.
-
-| Simulaciones (M) | Error del percentil (±) | Memoria de la simulación (N = 100) |
-|---|---|---|
-| 100 (mínimo) | 5,00 puntos | 0,08 MB |
-| 1.000 (por defecto) | 1,58 puntos | 0,8 MB |
-| 10.000 | 0,50 puntos | 8 MB |
-| 50.000 (máximo) | 0,22 puntos | 40 MB |
-| 500.000 (fuera del rango) | 0,07 puntos | 400 MB |
-
-- **Mínimo de 100:** con menos simulaciones el error del percentil supera los 5 puntos
-  y el histograma, que tiene 60 barras, queda con menos de 2 mercados por barra, así
-  que casi no forma una distribución.
-- **Valor por defecto de 1.000:** error de unos 1,6 puntos y cálculo rápido.
-- **Máximo de 50.000:** error de unos 0,22 puntos. Subir a 500.000 solo mejoraría la
-  precisión en unos 0,15 puntos, pero multiplicaría por 10 la memoria y, aproximadamente,
-  el tiempo de cálculo. En un servidor gratuito eso arriesga que la app se ralentice
-  o se reinicie, por lo que no compensa.
-
-La app guarda en memoria las 3 simulaciones más recientes para no recalcular al cambiar
-de indicador, y descarta las más antiguas para que la memoria no crezca.
-        """
-    )
 
 if indicador.startswith("CR") and k == n:
     st.info(f"Con k = {n} (todas las empresas), CR siempre vale 100 %, "
