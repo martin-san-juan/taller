@@ -51,23 +51,27 @@ INDICADORES = {
         "mas_alto_mas_concentrado": True,
         "formato": "{:.1f} %",
         "descripcion": "Porcentaje del mercado en manos de las k empresas más grandes.",
+        "unidad": "% del mercado",
     },
     "HHI (Herfindahl-Hirschman)": {
         "mas_alto_mas_concentrado": True,
         "formato": "{:,.0f}",
         "descripcion": "Suma de los cuadrados de las cuotas. Va de 10.000/N a 10.000 (monopolio).",
+        "unidad": "puntos, escala 0–10.000",
     },
     "Índice de dominancia (ID)": {
         "mas_alto_mas_concentrado": True,
         "formato": "{:,.0f}",
         "descripcion": "Mide si el HHI se debe sobre todo a una empresa. "
                        "Va de 10.000/N (todas iguales) a 10.000.",
+        "unidad": "puntos, escala 0–10.000",
     },
     "Índice de entropía": {
         "mas_alto_mas_concentrado": False,
         "formato": "{:.3f}",
         "descripcion": "Va de 0 (monopolio) a ln N (todas iguales). "
                        "Valores MÁS ALTOS indican MENOS concentración.",
+        "unidad": "nats, escala 0–ln N; más alto = menos concentrado",
     },
 }
 
@@ -331,8 +335,8 @@ ax.hist(valores_sim, bins=barras, range=rango, color="steelblue", alpha=0.7,
         label="Mercados simulados")
 ax.axvline(valor_real, color="crimson", linewidth=2,
            label=f"Caso real ({fmt.format(valor_real)})")
-ax.set_xlabel(nombre_corto)
-ax.set_ylabel("Frecuencia")
+ax.set_xlabel(f"{nombre_corto} ({info['unidad']})")
+ax.set_ylabel("Frecuencia (n.º de mercados simulados)")
 ax.set_title(f"Distribución Monte Carlo: {nombre_corto}")
 ax.legend()
 st.pyplot(fig)
