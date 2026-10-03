@@ -1,6 +1,6 @@
 """
 App de Streamlit: simulación Monte Carlo de la concentración de un mercado.
-Indicadores: HHI, CR_k, índice de dominancia, entropía y entropía normalizada.
+Indicadores: CR_k, HHI, índice de dominancia y entropía.
 Ejecutar en local:  streamlit run app.py
 """
 
@@ -44,24 +44,18 @@ def calcular_entropia(cuotas):
     return -np.sum(p * np.log(p_segura), axis=-1)
 
 
-def calcular_entropia_normalizada(cuotas):
-    """Entropía dividida por ln N. Rango: 0 (monopolio) a 1 (todas iguales)."""
-    n = np.asarray(cuotas).shape[-1]
-    return calcular_entropia(cuotas) / np.log(n)
-
-
 # Información de cada indicador: si un valor alto significa más concentración,
 # cómo mostrar los números y una breve descripción.
 INDICADORES = {
+    "CR_k (ratio de concentración)": {
+        "mas_alto_mas_concentrado": True,
+        "formato": "{:.1f} %",
+        "descripcion": "Porcentaje del mercado en manos de las k empresas más grandes.",
+    },
     "HHI (Herfindahl-Hirschman)": {
         "mas_alto_mas_concentrado": True,
         "formato": "{:,.0f}",
         "descripcion": "Suma de los cuadrados de las cuotas. Va de 10.000/N a 10.000 (monopolio).",
-    },
-    "CR_k (cuota de las k mayores)": {
-        "mas_alto_mas_concentrado": True,
-        "formato": "{:.1f} %",
-        "descripcion": "Porcentaje del mercado en manos de las k empresas más grandes.",
     },
     "Índice de dominancia (ID)": {
         "mas_alto_mas_concentrado": True,
@@ -69,17 +63,11 @@ INDICADORES = {
         "descripcion": "Mide si el HHI se debe sobre todo a una empresa. "
                        "Va de 10.000/N (todas iguales) a 10.000.",
     },
-    "Entropía": {
+    "Índice de entropía": {
         "mas_alto_mas_concentrado": False,
         "formato": "{:.3f}",
         "descripcion": "Va de 0 (monopolio) a ln N (todas iguales). "
                        "Valores MÁS ALTOS indican MENOS concentración.",
-    },
-    "Entropía normalizada (E / ln N)": {
-        "mas_alto_mas_concentrado": False,
-        "formato": "{:.3f}",
-        "descripcion": "Entropía dividida por ln N, para comparar mercados con distinto "
-                       "número de empresas. Va de 0 a 1; más alto = menos concentración.",
     },
 }
 
@@ -92,8 +80,6 @@ def calcular_indicador(nombre, cuotas, k=4):
         return calcular_cr(cuotas, k)
     if nombre.startswith("Índice de dominancia"):
         return calcular_dominancia(cuotas)
-    if nombre.startswith("Entropía normalizada"):
-        return calcular_entropia_normalizada(cuotas)
     return calcular_entropia(cuotas)
 
 
@@ -121,9 +107,6 @@ def obtener_umbrales(nombre, n, k):
         alta = min(100.0, 100 * k / N_EQ_ALTA)
         return baja, alta, (f"Fuente: equivalencia con el HHI. Es el CR{k} de un mercado de 10 "
                             "empresas iguales (HHI 1.000) y de 5,56 empresas iguales (HHI 1.800).")
-    if nombre.startswith("Entropía normalizada"):
-        return (np.log(N_EQ_BAJA) / np.log(n), np.log(N_EQ_ALTA) / np.log(n),
-                f"Fuente: equivalencia con el HHI. Son ln 10 y ln 5,56 divididos por ln {n}.")
     return (np.log(N_EQ_BAJA), np.log(N_EQ_ALTA),
             "Fuente: equivalencia con el HHI. Con N empresas iguales la entropía vale ln N, "
             "así que los cortes son ln 10 y ln 5,56.")
