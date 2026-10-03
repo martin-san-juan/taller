@@ -318,6 +318,34 @@ if st.button("Responder"):
                         f"que {a}. Ojo: en la entropía, un valor más alto es MENOS concentración.")
         st.caption(f"Criterio para {nombre_corto}: {criterio} {fuente}")
 
+        # Posición del caso real en la simulación Monte Carlo
+        st.write(f"En la simulación, el caso real es **más concentrado que el "
+                 f"{mas_concentrado_que:.1f} %** de los {n_sim:,} mercados aleatorios "
+                 f"con {n} empresas.")
+
+        # Lectura según el percentil, dividiendo en tercios
+        if mas_concentrado_que < 100 / 3:
+            nivel_percentil = "Baja"
+            lectura = "está entre el tercio MENOS concentrado de los mercados simulados"
+        elif mas_concentrado_que <= 200 / 3:
+            nivel_percentil = "Moderada"
+            lectura = "está en el tercio intermedio de los mercados simulados"
+        else:
+            nivel_percentil = "Alta"
+            lectura = "está entre el tercio MÁS concentrado de los mercados simulados"
+
+        # Si el umbral y el percentil no coinciden, se aclara por qué
+        if nivel_percentil != correcta:
+            st.info(
+                f"Ojo: según el umbral la concentración es **{correcta.lower()}**, pero "
+                f"comparado con la simulación el caso {lectura}. No es una contradicción: "
+                f"el umbral mide la concentración en términos absolutos, mientras que el "
+                f"percentil la compara con mercados al azar con el mismo número de "
+                f"empresas ({n}). Con pocas empresas casi cualquier reparto es concentrado "
+                f"en términos absolutos, aunque este mercado no lo sea tanto en relación "
+                f"con lo esperable por azar (y al revés con muchas empresas)."
+            )
+
         # Avisar si con este número de empresas ni el reparto más igualitario es "baja"
         iguales = np.full(n, 100 / n)
         nivel_minimo = clasificar(indicador, float(calcular_indicador(indicador, iguales, k)), n, k)
