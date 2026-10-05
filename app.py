@@ -8,6 +8,9 @@ import numpy as np
 import matplotlib.pyplot as plt
 import streamlit as st
 
+# Página ancha: usa todo el ancho de la pantalla (debe ser el primer comando de Streamlit)
+st.set_page_config(page_title="Concentración de mercado", layout="wide")
+
 
 # ---------------------------------------------------------------
 # 1. INDICADORES DE CONCENTRACIÓN
@@ -145,7 +148,7 @@ def simular_mercados(n_empresas, n_sim, alpha, semilla):
 
 
 # ---------------------------------------------------------------
-# 3. INTERFAZ: ENTRADA DE DATOS
+# 3. FUNCIONES AUXILIARES DE LA INTERFAZ
 # ---------------------------------------------------------------
 def texto_desde_cuotas(cuotas):
     """Convierte una lista de cuotas en texto: [40, 25.5] -> "40, 25.5"."""
@@ -193,63 +196,45 @@ if "texto_cuotas" not in st.session_state:
     st.session_state["texto_cuotas"] = "40, 25, 15, 12, 8"
     st.session_state["n_empresas"] = 5
 
+
+# ---------------------------------------------------------------
+# 4. FILA 1: DEFINIR EL CASO REAL (izquierda) | INDICADORES DEL CASO (derecha)
+# ---------------------------------------------------------------
 st.title("Concentración de mercado: simulación Monte Carlo")
 st.write("Compara un mercado real con miles de mercados aleatorios "
          "con el mismo número de empresas.")
 
-n = int(st.number_input(
-    "Número de empresas (N)",
-    min_value=2,
-    max_value=100,
-    step=1,
-    key="n_empresas",
-    on_change=ajustar_cuotas_a_n,   # al cambiar N, se ajustan las cuotas
-))
+col_caso, col_tabla = st.columns([3, 2], gap="large")
 
-texto_cuotas = st.text_input(
-    f"Cuotas de mercado de las {n} empresas en % (separadas por comas, deben sumar 100)",
-    key="texto_cuotas",
-)
-st.button("🎲 Generar caso real al azar", on_click=generar_caso_aleatorio)
-st.caption("Al cambiar N, las cuotas se ajustan solas: si bajas N se quitan las últimas "
-           "empresas, si lo subes se añaden empresas del tamaño de la más pequeña, y "
-           "luego todo se reescala para sumar 100. Después puedes editarlas a mano.")
-
-
-# ---------------------------------------------------------------
-# 4. VALIDACIÓN DE LAS CUOTAS
-# ---------------------------------------------------------------
-try:
-    cuotas_reales = np.array([float(x) for x in texto_cuotas.split(",") if x.strip()])
-except ValueError:
-    st.error("Escribe solo números separados por comas, por ejemplo: 40, 25, 15, 12, 8")
-    st.stop()
-
-if len(cuotas_reales) != n:
-    st.error(f"Has escrito {len(cuotas_reales)} cuotas, pero N = {n}. "
-             "Escribe una cuota por empresa o cambia N.")
-    st.stop()
-
-fuera_de_rango = [x for x in cuotas_reales if x < 0 or x > 100]
-if fuera_de_rango:
-    lista = ", ".join(f"{x:g}" for x in fuera_de_rango)
-    st.error(f"Cada cuota debe estar entre 0 y 100. Valores no válidos: {lista}")
-    st.stop()
-
-if not np.isclose(cuotas_reales.sum(), 100):
-    st.error(f"Las cuotas deben sumar 100 (ahora suman {cuotas_reales.sum():.2f}).")
-    st.stop()
+with col_caso:
+    st.subheader("1. Define el caso real")
+    n = int(st.number_input(
+        "Número de empresas (N)",
+        min_value=2,
+        max_value=100,
+        step=1,
+        key="n_empresas",
+        on_change=ajustar_cuotas_a_n,   # al cambiar N, se ajustan las cuotas
+    ))
+    texto_cuotas = st.text_input(
+        f"Cuotas de mercado de las {n} empresas en % (separadas por comas, deben sumar 100)",
+        key="texto_cuotas",
+    )
+    st.button("🎲 Generar caso real al azar", on_click=generar_caso_aleatorio)
+    st.caption("Al cambiar N, las cuotas se ajustan solas: si bajas N se quitan las últimas "
+               "empresas, si lo subes se añaden empresas del tamaño de la más pequeña, y "
+               "luego todo se reescala para sumar 100. Después puedes editarlas a mano.")
 
 
 # ---------------------------------------------------------------
 # 5. BARRA LATERAL: ELECCIÓN DE INDICADOR Y PARÁMETROS
+#    (se dibuja antes de validar, así no desaparece si hay un error en las cuotas)
 # ---------------------------------------------------------------
 st.sidebar.header("Indicador")
 indicador = st.sidebar.selectbox("¿Qué indicador quieres analizar?", list(INDICADORES.keys()))
 
 k = min(4, n)
 if indicador.startswith("CR"):
-    # El máximo de k es el número de empresas, así nunca se puede superar
     k = int(st.sidebar.number_input(
         "k (número de empresas más grandes)",
         min_value=1,
@@ -278,9 +263,34 @@ semilla = 42  # fija: así los resultados son siempre los mismos para los mismos
 
 
 # ---------------------------------------------------------------
-# 6. RESUMEN DEL CASO REAL CON TODOS LOS INDICADORES
+# 6. VALIDACIÓN DE LAS CUOTAS (los errores aparecen bajo los campos de entrada)
 # ---------------------------------------------------------------
-st.subheader("Caso real: todos los indicadores")
+with col_caso:
+    try:
+        cuotas_reales = np.array([float(x) for x in texto_cuotas.split(",") if x.strip()])
+    except ValueError:
+        st.error("Escribe solo números separados por comas, por ejemplo: 40, 25, 15, 12, 8")
+        st.stop()
+
+    if len(cuotas_reales) != n:
+        st.error(f"Has escrito {len(cuotas_reales)} cuotas, pero N = {n}. "
+                 "Escribe una cuota por empresa o cambia N.")
+        st.stop()
+
+    fuera_de_rango = [x for x in cuotas_reales if x < 0 or x > 100]
+    if fuera_de_rango:
+        lista = ", ".join(f"{x:g}" for x in fuera_de_rango)
+        st.error(f"Cada cuota debe estar entre 0 y 100. Valores no válidos: {lista}")
+        st.stop()
+
+    if not np.isclose(cuotas_reales.sum(), 100):
+        st.error(f"Las cuotas deben sumar 100 (ahora suman {cuotas_reales.sum():.2f}).")
+        st.stop()
+
+
+# ---------------------------------------------------------------
+# 7. FILA 1 (derecha): TABLA CON TODOS LOS INDICADORES DEL CASO REAL
+# ---------------------------------------------------------------
 filas = []
 for nombre, datos in INDICADORES.items():
     valor = float(calcular_indicador(nombre, cuotas_reales, k))
@@ -289,11 +299,14 @@ for nombre, datos in INDICADORES.items():
     else:
         etiqueta = nombre
     filas.append({"Indicador": etiqueta, "Valor": datos["formato"].format(valor)})
-st.table(filas)
+
+with col_tabla:
+    st.subheader("Indicadores del caso real")
+    st.table(filas)
 
 
 # ---------------------------------------------------------------
-# 7. ANÁLISIS MONTE CARLO DEL INDICADOR ELEGIDO
+# 8. CÁLCULOS DE LA SIMULACIÓN MONTE CARLO DEL INDICADOR ELEGIDO
 # ---------------------------------------------------------------
 info = INDICADORES[indicador]
 nombre_corto = f"CR{k}" if indicador.startswith("CR") else indicador
@@ -315,62 +328,74 @@ else:
 p025, p975 = np.percentile(valores_sim, [2.5, 97.5])
 fmt = info["formato"]
 
-st.subheader(f"Análisis Monte Carlo: {nombre_corto}")
-st.caption(info["descripcion"])
-
-col1, col2, col3 = st.columns(3)
-col1.metric(f"{nombre_corto} real", fmt.format(valor_real))
-col2.metric("Media simulada", fmt.format(float(valores_sim.mean())))
-col3.metric("Percentil del caso real", f"{percentil:.1f} %")
-
-st.write(f"El caso real es **más concentrado que el {mas_concentrado_que:.1f} %** de los "
-         f"{n_sim:,} mercados simulados con {n} empresas.")
-st.write(f"El 95 % de los mercados simulados tiene un {nombre_corto} entre "
-         f"{fmt.format(float(p025))} y {fmt.format(float(p975))}.")
-
-if indicador.startswith("CR") and k == n:
-    st.info(f"Con k = {n} (todas las empresas), CR siempre vale 100 %, "
-            "así que la comparación no aporta información. Prueba con un k menor.")
-
-# Histograma del indicador elegido con la línea del caso real
-# Si todos los valores simulados son iguales (CR con k = N), se usa una sola barra
-if np.ptp(valores_sim) < 1e-6:
-    barras, rango = 1, (valor_real - 1, valor_real + 1)
-else:
-    barras, rango = 60, None
-
-fig, ax = plt.subplots(figsize=(8, 5))
-ax.hist(valores_sim, bins=barras, range=rango, color="steelblue", alpha=0.7,
-        label="Mercados simulados")
-ax.axvline(valor_real, color="crimson", linewidth=2,
-           label=f"Caso real ({fmt.format(valor_real)})")
-ax.set_xlabel(f"{nombre_corto} ({info['unidad']})")
-ax.set_ylabel("Frecuencia (n.º de mercados simulados)")
-ax.set_title(f"Distribución Monte Carlo: {nombre_corto}")
-ax.legend()
-st.pyplot(fig)
-plt.close(fig)
-
 
 # ---------------------------------------------------------------
-# 8. PREGUNTA PARA EL USUARIO (según el indicador elegido)
+# 9. FILA 2: GRÁFICO (izquierda) | RESULTADOS (derecha)
 # ---------------------------------------------------------------
 st.divider()
-st.subheader("Pon a prueba tu intuición")
+st.subheader(f"2. Análisis Monte Carlo: {nombre_corto}")
+st.caption(info["descripcion"])
+
+col_graf, col_res = st.columns([3, 2], gap="large")
+
+with col_graf:
+    # Si todos los valores simulados son iguales (CR con k = N), se usa una sola barra
+    if np.ptp(valores_sim) < 1e-6:
+        barras, rango = 1, (valor_real - 1, valor_real + 1)
+    else:
+        barras, rango = 60, None
+
+    fig, ax = plt.subplots(figsize=(8, 4.8))
+    ax.hist(valores_sim, bins=barras, range=rango, color="steelblue", alpha=0.7,
+            label="Mercados simulados")
+    ax.axvline(valor_real, color="crimson", linewidth=2,
+               label=f"Caso real ({fmt.format(valor_real)})")
+    ax.set_xlabel(f"{nombre_corto} ({info['unidad']})")
+    ax.set_ylabel("Frecuencia (n.º de mercados simulados)")
+    ax.set_title(f"Distribución Monte Carlo: {nombre_corto}")
+    ax.legend()
+    st.pyplot(fig)
+    plt.close(fig)
+
+with col_res:
+    st.metric(f"{nombre_corto} real", fmt.format(valor_real))
+    st.metric("Media simulada", fmt.format(float(valores_sim.mean())))
+    st.metric("Percentil del caso real", f"{percentil:.1f} %")
+    st.write(f"El caso real es **más concentrado que el {mas_concentrado_que:.1f} %** de los "
+             f"{n_sim:,} mercados simulados con {n} empresas.")
+    st.write(f"El 95 % de los mercados simulados tiene un {nombre_corto} entre "
+             f"{fmt.format(float(p025))} y {fmt.format(float(p975))}.")
+    if indicador.startswith("CR") and k == n:
+        st.info(f"Con k = {n} (todas las empresas), CR siempre vale 100 %, "
+                "así que la comparación no aporta información. Prueba con un k menor.")
+
+
+# ---------------------------------------------------------------
+# 10. FILA 3: PREGUNTA (izquierda) | CORRECCIÓN Y JUSTIFICACIÓN (derecha)
+# ---------------------------------------------------------------
+st.divider()
+st.subheader("3. Pon a prueba tu intuición")
 
 correcta = clasificar(indicador, valor_real, n, k)
 corte_baja, corte_alta, fuente = obtener_umbrales(indicador, n, k)
 
-eleccion = st.radio(
-    f"Según el indicador {nombre_corto}, ¿la concentración de este mercado es baja, moderada o alta?",
-    ["Baja", "Moderada", "Alta"],
-    index=None,                          # ninguna opción marcada al inicio
-    horizontal=True,
-    key=f"pregunta_{indicador}_{k}",     # se reinicia al cambiar de indicador o de k
-)
+col_preg, col_resp = st.columns([2, 3], gap="large")
 
-if st.button("Responder"):
-    if eleccion is None:
+with col_preg:
+    eleccion = st.radio(
+        f"Según el indicador {nombre_corto}, ¿la concentración de este mercado es baja, moderada o alta?",
+        ["Baja", "Moderada", "Alta"],
+        index=None,                          # ninguna opción marcada al inicio
+        horizontal=True,
+        key=f"pregunta_{indicador}_{k}",     # se reinicia al cambiar de indicador o de k
+    )
+    responder = st.button("Responder")
+
+with col_resp:
+    if not responder:
+        st.caption("Elige una opción y pulsa «Responder» para ver la corrección "
+                   "y su justificación.")
+    elif eleccion is None:
         st.warning("Elige una opción antes de responder.")
     else:
         texto = (f"Con {nombre_corto} = {fmt.format(valor_real)}, "
