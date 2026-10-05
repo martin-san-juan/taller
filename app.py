@@ -8,8 +8,8 @@ import numpy as np
 import matplotlib.pyplot as plt
 import streamlit as st
 
-# Página ancha: usa todo el ancho de la pantalla (debe ser el primer comando de Streamlit)
-st.set_page_config(page_title="Concentración de mercado", layout="wide")
+# Usa todo el ancho de la pantalla (debe ir antes de cualquier otro elemento de Streamlit)
+st.set_page_config(page_title="Concentración de mercado", page_icon="📊", layout="wide")
 
 
 # ---------------------------------------------------------------
@@ -148,7 +148,7 @@ def simular_mercados(n_empresas, n_sim, alpha, semilla):
 
 
 # ---------------------------------------------------------------
-# 3. FUNCIONES AUXILIARES DE LA INTERFAZ
+# 3. INTERFAZ: ENTRADA DE DATOS
 # ---------------------------------------------------------------
 def texto_desde_cuotas(cuotas):
     """Convierte una lista de cuotas en texto: [40, 25.5] -> "40, 25.5"."""
@@ -196,39 +196,65 @@ if "texto_cuotas" not in st.session_state:
     st.session_state["texto_cuotas"] = "40, 25, 15, 12, 8"
     st.session_state["n_empresas"] = 5
 
-
-# ---------------------------------------------------------------
-# 4. FILA 1: DEFINIR EL CASO REAL (izquierda) | INDICADORES DEL CASO (derecha)
-# ---------------------------------------------------------------
 st.title("Concentración de mercado: simulación Monte Carlo")
 st.write("Compara un mercado real con miles de mercados aleatorios "
          "con el mismo número de empresas.")
 
-col_caso, col_tabla = st.columns([3, 2], gap="large")
+# La página se organiza en dos filas, cada una con dos columnas:
+#   Fila 1:  [ 1. Caso real (datos) ]        [ 2. Todos los indicadores ]
+#   Fila 2:  [ 3. Gráfico Monte Carlo ]       [ Interpretación + 4. Pregunta ]
+# st.columns([3, 2]) crea dos columnas: la izquierda ocupa 3/5 del ancho y la derecha 2/5.
+col_datos, col_tabla = st.columns([3, 2], gap="large")
 
-with col_caso:
-    st.subheader("1. Define el caso real")
-    n = int(st.number_input(
-        "Número de empresas (N)",
-        min_value=2,
-        max_value=100,
-        step=1,
-        key="n_empresas",
-        on_change=ajustar_cuotas_a_n,   # al cambiar N, se ajustan las cuotas
-    ))
-    texto_cuotas = st.text_input(
-        f"Cuotas de mercado de las {n} empresas en % (separadas por comas, deben sumar 100)",
-        key="texto_cuotas",
-    )
+with col_datos:
+    st.subheader("1. Caso real")
+    c_n, c_cuotas = st.columns([1, 3])
+    with c_n:
+        n = int(st.number_input(
+            "Empresas (N)",
+            min_value=2,
+            max_value=100,
+            step=1,
+            key="n_empresas",
+            on_change=ajustar_cuotas_a_n,   # al cambiar N, se ajustan las cuotas
+        ))
+    with c_cuotas:
+        texto_cuotas = st.text_input(
+            f"Cuotas de las {n} empresas en % (separadas por comas, deben sumar 100)",
+            key="texto_cuotas",
+        )
     st.button("🎲 Generar caso real al azar", on_click=generar_caso_aleatorio)
     st.caption("Al cambiar N, las cuotas se ajustan solas: si bajas N se quitan las últimas "
                "empresas, si lo subes se añaden empresas del tamaño de la más pequeña, y "
                "luego todo se reescala para sumar 100. Después puedes editarlas a mano.")
 
+    # -----------------------------------------------------------
+    # 4. VALIDACIÓN DE LAS CUOTAS (los errores salen en esta columna)
+    # -----------------------------------------------------------
+    try:
+        cuotas_reales = np.array([float(x) for x in texto_cuotas.split(",") if x.strip()])
+    except ValueError:
+        st.error("Escribe solo números separados por comas, por ejemplo: 40, 25, 15, 12, 8")
+        st.stop()
+
+    if len(cuotas_reales) != n:
+        st.error(f"Has escrito {len(cuotas_reales)} cuotas, pero N = {n}. "
+                 "Escribe una cuota por empresa o cambia N.")
+        st.stop()
+
+    fuera_de_rango = [x for x in cuotas_reales if x < 0 or x > 100]
+    if fuera_de_rango:
+        lista = ", ".join(f"{x:g}" for x in fuera_de_rango)
+        st.error(f"Cada cuota debe estar entre 0 y 100. Valores no válidos: {lista}")
+        st.stop()
+
+    if not np.isclose(cuotas_reales.sum(), 100):
+        st.error(f"Las cuotas deben sumar 100 (ahora suman {cuotas_reales.sum():.2f}).")
+        st.stop()
+
 
 # ---------------------------------------------------------------
 # 5. BARRA LATERAL: ELECCIÓN DE INDICADOR Y PARÁMETROS
-#    (se dibuja antes de validar, así no desaparece si hay un error en las cuotas)
 # ---------------------------------------------------------------
 st.sidebar.header("Indicador")
 indicador = st.sidebar.selectbox("¿Qué indicador quieres analizar?", list(INDICADORES.keys()))
@@ -263,33 +289,7 @@ semilla = 42  # fija: así los resultados son siempre los mismos para los mismos
 
 
 # ---------------------------------------------------------------
-# 6. VALIDACIÓN DE LAS CUOTAS (los errores aparecen bajo los campos de entrada)
-# ---------------------------------------------------------------
-with col_caso:
-    try:
-        cuotas_reales = np.array([float(x) for x in texto_cuotas.split(",") if x.strip()])
-    except ValueError:
-        st.error("Escribe solo números separados por comas, por ejemplo: 40, 25, 15, 12, 8")
-        st.stop()
-
-    if len(cuotas_reales) != n:
-        st.error(f"Has escrito {len(cuotas_reales)} cuotas, pero N = {n}. "
-                 "Escribe una cuota por empresa o cambia N.")
-        st.stop()
-
-    fuera_de_rango = [x for x in cuotas_reales if x < 0 or x > 100]
-    if fuera_de_rango:
-        lista = ", ".join(f"{x:g}" for x in fuera_de_rango)
-        st.error(f"Cada cuota debe estar entre 0 y 100. Valores no válidos: {lista}")
-        st.stop()
-
-    if not np.isclose(cuotas_reales.sum(), 100):
-        st.error(f"Las cuotas deben sumar 100 (ahora suman {cuotas_reales.sum():.2f}).")
-        st.stop()
-
-
-# ---------------------------------------------------------------
-# 7. FILA 1 (derecha): TABLA CON TODOS LOS INDICADORES DEL CASO REAL
+# 6. RESUMEN DEL CASO REAL CON TODOS LOS INDICADORES (columna derecha, fila 1)
 # ---------------------------------------------------------------
 filas = []
 for nombre, datos in INDICADORES.items():
@@ -301,14 +301,15 @@ for nombre, datos in INDICADORES.items():
     filas.append({"Indicador": etiqueta, "Valor": datos["formato"].format(valor)})
 
 with col_tabla:
-    st.subheader("Indicadores del caso real")
+    st.subheader("2. Todos los indicadores")
     st.table(filas)
 
 
 # ---------------------------------------------------------------
-# 8. CÁLCULOS DE LA SIMULACIÓN MONTE CARLO DEL INDICADOR ELEGIDO
+# 7. CÁLCULOS MONTE CARLO DEL INDICADOR ELEGIDO
 # ---------------------------------------------------------------
 info = INDICADORES[indicador]
+fmt = info["formato"]
 nombre_corto = f"CR{k}" if indicador.startswith("CR") else indicador
 
 simulados = simular_mercados(n, n_sim, alpha, int(semilla))
@@ -326,26 +327,34 @@ else:
     mas_concentrado_que = float(np.mean(valores_sim > valor_real) * 100)
 
 p025, p975 = np.percentile(valores_sim, [2.5, 97.5])
-fmt = info["formato"]
 
 
 # ---------------------------------------------------------------
-# 9. FILA 2: GRÁFICO (izquierda) | RESULTADOS (derecha)
+# FILA 2: TÍTULO Y CIFRAS CLAVE A TODO EL ANCHO
 # ---------------------------------------------------------------
 st.divider()
-st.subheader(f"2. Análisis Monte Carlo: {nombre_corto}")
+st.subheader(f"3. Análisis Monte Carlo: {nombre_corto}")
 st.caption(info["descripcion"])
 
-col_graf, col_res = st.columns([3, 2], gap="large")
+m1, m2, m3, m4 = st.columns(4)
+m1.metric(f"{nombre_corto} real", fmt.format(valor_real))
+m2.metric("Media simulada", fmt.format(float(valores_sim.mean())))
+m3.metric("Percentil del caso real", f"{percentil:.1f} %")
+m4.metric("Rango del 95 % simulado", f"{fmt.format(float(p025))} – {fmt.format(float(p975))}")
 
-with col_graf:
+col_grafico, col_lectura = st.columns([3, 2], gap="large")
+
+# ---------------------------------------------------------------
+# GRÁFICO (columna izquierda, fila 2)
+# ---------------------------------------------------------------
+with col_grafico:
     # Si todos los valores simulados son iguales (CR con k = N), se usa una sola barra
     if np.ptp(valores_sim) < 1e-6:
         barras, rango = 1, (valor_real - 1, valor_real + 1)
     else:
         barras, rango = 60, None
 
-    fig, ax = plt.subplots(figsize=(8, 4.8))
+    fig, ax = plt.subplots(figsize=(8, 4.5))
     ax.hist(valores_sim, bins=barras, range=rango, color="steelblue", alpha=0.7,
             label="Mercados simulados")
     ax.axvline(valor_real, color="crimson", linewidth=2,
@@ -354,97 +363,93 @@ with col_graf:
     ax.set_ylabel("Frecuencia (n.º de mercados simulados)")
     ax.set_title(f"Distribución Monte Carlo: {nombre_corto}")
     ax.legend()
+    fig.tight_layout()
     st.pyplot(fig)
     plt.close(fig)
 
-with col_res:
-    st.metric(f"{nombre_corto} real", fmt.format(valor_real))
-    st.metric("Media simulada", fmt.format(float(valores_sim.mean())))
-    st.metric("Percentil del caso real", f"{percentil:.1f} %")
+# ---------------------------------------------------------------
+# INTERPRETACIÓN + 8. PREGUNTA (columna derecha, fila 2)
+# ---------------------------------------------------------------
+with col_lectura:
+    st.markdown("**Interpretación**")
     st.write(f"El caso real es **más concentrado que el {mas_concentrado_que:.1f} %** de los "
              f"{n_sim:,} mercados simulados con {n} empresas.")
     st.write(f"El 95 % de los mercados simulados tiene un {nombre_corto} entre "
              f"{fmt.format(float(p025))} y {fmt.format(float(p975))}.")
+
     if indicador.startswith("CR") and k == n:
         st.info(f"Con k = {n} (todas las empresas), CR siempre vale 100 %, "
                 "así que la comparación no aporta información. Prueba con un k menor.")
 
+    st.divider()
+    st.subheader("4. Pon a prueba tu intuición")
 
-# ---------------------------------------------------------------
-# 10. FILA 3: PREGUNTA (izquierda) | CORRECCIÓN Y JUSTIFICACIÓN (derecha)
-# ---------------------------------------------------------------
-st.divider()
-st.subheader("3. Pon a prueba tu intuición")
+    correcta = clasificar(indicador, valor_real, n, k)
+    corte_baja, corte_alta, fuente = obtener_umbrales(indicador, n, k)
 
-correcta = clasificar(indicador, valor_real, n, k)
-corte_baja, corte_alta, fuente = obtener_umbrales(indicador, n, k)
-
-col_preg, col_resp = st.columns([2, 3], gap="large")
-
-with col_preg:
     eleccion = st.radio(
-        f"Según el indicador {nombre_corto}, ¿la concentración de este mercado es baja, moderada o alta?",
+        f"Según el indicador {nombre_corto}, ¿la concentración de este mercado es "
+        "baja, moderada o alta?",
         ["Baja", "Moderada", "Alta"],
         index=None,                          # ninguna opción marcada al inicio
         horizontal=True,
         key=f"pregunta_{indicador}_{k}",     # se reinicia al cambiar de indicador o de k
     )
-    responder = st.button("Responder")
 
-with col_resp:
-    if not responder:
-        st.caption("Elige una opción y pulsa «Responder» para ver la corrección "
-                   "y su justificación.")
-    elif eleccion is None:
-        st.warning("Elige una opción antes de responder.")
-    else:
-        texto = (f"Con {nombre_corto} = {fmt.format(valor_real)}, "
-                 f"la concentración es {correcta.lower()}.")
-        if eleccion == correcta:
-            st.success("¡Correcto! " + texto)
+    if st.button("Responder"):
+        if eleccion is None:
+            st.warning("Elige una opción antes de responder.")
         else:
-            st.error("No es correcto. " + texto)
+            texto = (f"Con {nombre_corto} = {fmt.format(valor_real)}, "
+                     f"la concentración es {correcta.lower()}.")
+            if eleccion == correcta:
+                st.success("¡Correcto! " + texto)
+            else:
+                st.error("No es correcto. " + texto)
 
-        # Explicar el criterio usado
-        b, a = fmt.format(float(corte_baja)), fmt.format(float(corte_alta))
-        if info["mas_alto_mas_concentrado"]:
-            criterio = f"baja si es menor que {b}; moderada entre {b} y {a}; alta si es mayor que {a}."
-        else:
-            criterio = (f"baja si es mayor que {b}; moderada entre {a} y {b}; alta si es menor "
-                        f"que {a}. Ojo: en la entropía, un valor más alto es MENOS concentración.")
-        st.caption(f"Criterio para {nombre_corto}: {criterio} {fuente}")
+            # Explicar el criterio usado
+            b, a = fmt.format(float(corte_baja)), fmt.format(float(corte_alta))
+            if info["mas_alto_mas_concentrado"]:
+                criterio = (f"baja si es menor que {b}; moderada entre {b} y {a}; "
+                            f"alta si es mayor que {a}.")
+            else:
+                criterio = (f"baja si es mayor que {b}; moderada entre {a} y {b}; alta si es "
+                            f"menor que {a}. Ojo: en la entropía, un valor más alto es MENOS "
+                            "concentración.")
+            st.caption(f"Criterio para {nombre_corto}: {criterio} {fuente}")
 
-        # Posición del caso real en la simulación Monte Carlo
-        st.write(f"En la simulación, el caso real es **más concentrado que el "
-                 f"{mas_concentrado_que:.1f} %** de los {n_sim:,} mercados aleatorios "
-                 f"con {n} empresas.")
+            # Posición del caso real en la simulación Monte Carlo
+            st.write(f"En la simulación, el caso real es **más concentrado que el "
+                     f"{mas_concentrado_que:.1f} %** de los {n_sim:,} mercados aleatorios "
+                     f"con {n} empresas.")
 
-        # Lectura según el percentil, dividiendo en tercios
-        if mas_concentrado_que < 100 / 3:
-            nivel_percentil = "Baja"
-            lectura = "está entre el tercio MENOS concentrado de los mercados simulados"
-        elif mas_concentrado_que <= 200 / 3:
-            nivel_percentil = "Moderada"
-            lectura = "está en el tercio intermedio de los mercados simulados"
-        else:
-            nivel_percentil = "Alta"
-            lectura = "está entre el tercio MÁS concentrado de los mercados simulados"
+            # Lectura según el percentil, dividiendo en tercios
+            if mas_concentrado_que < 100 / 3:
+                nivel_percentil = "Baja"
+                lectura = "está entre el tercio MENOS concentrado de los mercados simulados"
+            elif mas_concentrado_que <= 200 / 3:
+                nivel_percentil = "Moderada"
+                lectura = "está en el tercio intermedio de los mercados simulados"
+            else:
+                nivel_percentil = "Alta"
+                lectura = "está entre el tercio MÁS concentrado de los mercados simulados"
 
-        # Si el umbral y el percentil no coinciden, se aclara por qué
-        if nivel_percentil != correcta:
-            st.info(
-                f"Ojo: según el umbral la concentración es **{correcta.lower()}**, pero "
-                f"comparado con la simulación el caso {lectura}. No es una contradicción: "
-                f"el umbral mide la concentración en términos absolutos, mientras que el "
-                f"percentil la compara con mercados al azar con el mismo número de "
-                f"empresas ({n}). Con pocas empresas casi cualquier reparto es concentrado "
-                f"en términos absolutos, aunque este mercado no lo sea tanto en relación "
-                f"con lo esperable por azar (y al revés con muchas empresas)."
-            )
+            # Si el umbral y el percentil no coinciden, se aclara por qué
+            if nivel_percentil != correcta:
+                st.info(
+                    f"Ojo: según el umbral la concentración es **{correcta.lower()}**, pero "
+                    f"comparado con la simulación el caso {lectura}. No es una contradicción: "
+                    f"el umbral mide la concentración en términos absolutos, mientras que el "
+                    f"percentil la compara con mercados al azar con el mismo número de "
+                    f"empresas ({n}). Con pocas empresas casi cualquier reparto es concentrado "
+                    f"en términos absolutos, aunque este mercado no lo sea tanto en relación "
+                    f"con lo esperable por azar (y al revés con muchas empresas)."
+                )
 
-        # Avisar si con este número de empresas ni el reparto más igualitario es "baja"
-        iguales = np.full(n, 100 / n)
-        nivel_minimo = clasificar(indicador, float(calcular_indicador(indicador, iguales, k)), n, k)
-        if nivel_minimo != "Baja":
-            st.caption(f"Nota: con {n} empresas, incluso si todas tuvieran la misma cuota la "
-                       f"concentración sería {nivel_minimo.lower()} según este criterio.")
+            # Avisar si con este número de empresas ni el reparto más igualitario es "baja"
+            iguales = np.full(n, 100 / n)
+            nivel_minimo = clasificar(indicador,
+                                      float(calcular_indicador(indicador, iguales, k)), n, k)
+            if nivel_minimo != "Baja":
+                st.caption(f"Nota: con {n} empresas, incluso si todas tuvieran la misma cuota "
+                           f"la concentración sería {nivel_minimo.lower()} según este criterio.")
