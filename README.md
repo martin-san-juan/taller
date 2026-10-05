@@ -1,3 +1,5 @@
+Link: https://claude.ai/share/40267ebd-2bbc-4755-95ee-b60424c6a6af
+
 # Simulador interactivo y evaluador de indicadores de concentración de mercado
 
 ## Qué hace la web
